@@ -38,15 +38,32 @@ export default async function handler(req, res) {
       return res.status(201).json({ id: nodeId, success: true });
     }
 
-    // PUT - actualizar nodo
+    // PUT - actualizar nodo (incluye mover)
     if (req.method === 'PUT') {
-      const { id, name, completed } = req.body;
+      const { id, name, completed, parent_id, function_id } = req.body;
       
       if (completed !== undefined) {
         await sql`UPDATE nodes SET completed = ${completed} WHERE id = ${id}`;
       }
       if (name !== undefined) {
         await sql`UPDATE nodes SET name = ${name} WHERE id = ${id}`;
+      }
+      // Mover nodo a otra carpeta o a raíz
+      if (parent_id !== undefined) {
+        await sql`UPDATE nodes SET parent_id = ${parent_id} WHERE id = ${id}`;
+      }
+      // Cambiar de función (mover entre funciones)
+      if (function_id !== undefined) {
+        // Actualizar el nodo y todos sus descendientes
+        await sql`
+          WITH RECURSIVE descendants AS (
+            SELECT id FROM nodes WHERE id = ${id}
+            UNION ALL
+            SELECT n.id FROM nodes n
+            INNER JOIN descendants d ON n.parent_id = d.id
+          )
+          UPDATE nodes SET function_id = ${function_id} WHERE id IN (SELECT id FROM descendants)
+        `;
       }
       
       return res.status(200).json({ success: true });
